@@ -24,13 +24,19 @@ type FileInfo struct {
     errors          []error
 }
 
-type JSONInfo struct {
-    Dir             string      `json:"dir"`
-    All_file        []string    `json:"all_files"`
-    To_delete       []string    `json:"to_delete"`
-    Success_count   int         `json:"success"`
-    Err_count       int         `json:"failures"`
-    Errors          []string    `json:"errors"`
+type ErrorMeaning struct {
+	Error	error
+	Err		int8
+	Meaning string
+}
+
+type JSONInfo struct { // Needed to write json file.
+    Dir             string      	`json:"dir"`
+    All_file        []string    	`json:"all_files"`
+    To_delete       []string    	`json:"to_delete"`
+    Success_count   int         	`json:"success"`
+    Err_count       int         	`json:"failures"`
+	Errs			[]ErrorMeaning	`json:"err_meaning"`
 }
 
 func (info *FileInfo) success(msg string) {
@@ -117,30 +123,35 @@ func (info *FileInfo) read_dir() []string {
 }
 
 func (info *FileInfo) check_errors() {
-    JI := JSONInfo{Dir: info.dir, All_file: info.all_files, To_delete: info.to_delete, Err_count: info.err_count, Success_count: info.success_count}
+	JI := JSONInfo{Dir: info.dir, All_file: info.all_files, To_delete: info.to_delete, Err_count: info.err_count, Success_count: info.success_count, Errs: []ErrorMeaning{}}
 
-    for i := range info.errors {
+    for i := 0; i < len(info.errors); i++ {
         if i == len(info.errors) - 1 {
             break
-        }
-        JI.Errors = append(JI.Errors, info.errors[i].Error())
+		}
+		
+		if os.IsNotExist(info.errors[i]) {
+			JI.Errs = append(JI.Errs, ErrorMeaning{Error: info.errors[i], Err: 2, Meaning: "Does not exist"})
+		} else {
+			JI.Errs = append(JI.Errs, ErrorMeaning{Error: info.errors[i], Err: 1, Meaning: "Does not exist"})
+		}
     }
 
     file, _ := json.MarshalIndent(JI, "", "\t")
     _ = ioutil.WriteFile("info.json", file, 0644)
 
     if info.err_count > info.success_count {
-        panic(info.errors[info.err_count - 1])
-    }
-
-    if len(info.to_delete) > 0 {
-        fmt.Println("Successfull! Deleted: ")
-        for i := range info.to_delete {
-            fmt.Println((i + 1), " -> ", info.to_delete[i])
-        }
+		fmt.Println(info.errors[info.err_count - 1])
     } else {
-        fmt.Println("Successfully went through the directory!")
-    }
+		if len(info.to_delete) > 0 {
+			fmt.Println("Successfull! Deleted: ")
+			for i := range info.to_delete {
+				fmt.Println((i + 1), " -> ", info.to_delete[i])
+			}
+		} else {
+			fmt.Println("Successfully went through the directory!")
+		}
+	}
 }
 
 func (info *FileInfo) remove(filename string, size int) {
@@ -264,6 +275,6 @@ func (info *FileInfo) do_all() {
 }
 
 func main() {
-    info := setup("/home/runner/ToRemove")
+    info := setup("/workspace/ToRemove")
     info.do_all()
 }
